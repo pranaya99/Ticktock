@@ -116,7 +116,7 @@ void Multimap<K, V>::FlipColors(Node* n) {
 
 template <typename K, typename V>
 void Multimap<K, V>::RotateRight(std::unique_ptr<Node>& prt) {
-  std::unique_ptr<Node> chd = std::move(prt->left);
+  std::unique_ptr<Node> chd(std::move(prt->left));
   prt->left = std::move(chd->right);
   chd->color = prt->color;
   prt->color = RED;
@@ -126,7 +126,7 @@ void Multimap<K, V>::RotateRight(std::unique_ptr<Node>& prt) {
 
 template <typename K, typename V>
 void Multimap<K, V>::RotateLeft(std::unique_ptr<Node>& prt) {
-  std::unique_ptr<Node> chd = std::move(prt->right);
+  std::unique_ptr<Node> chd(std::move(prt->right));
   prt->right = std::move(chd->left);
   chd->color = prt->color;
   prt->color = RED;
@@ -163,7 +163,7 @@ void Multimap<K, V>::MoveRedLeft(std::unique_ptr<Node>& n) {
 template <typename K, typename V>
 void Multimap<K, V>::DeleteMin(std::unique_ptr<Node>& n) {
   if (!n->left) {
-    n = nullptr;
+    n.reset();
     return;
   }
 
@@ -194,7 +194,7 @@ void Multimap<K, V>::Remove(std::unique_ptr<Node>& n, const K& key) {
     if (IsRed(n->left.get())) RotateRight(n);
 
     if (key == n->key && n->values.size() == 1) {
-      n = nullptr;
+      n.reset();
       return;
     }
 

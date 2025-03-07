@@ -44,7 +44,7 @@ class CFSScheduler {
  public:
   // Add a task to be scheduled
   void AddTask(char id, unsigned int start_time, unsigned int duration) {
-    tasks_.push_back(std::make_unique<Task>(id, start_time, duration));
+    tasks_.push_back(std::unique_ptr<Task>(new Task(id, start_time, duration)));
   }
 
   // Run the scheduler until all tasks are complete
