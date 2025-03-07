@@ -1,128 +1,163 @@
-#include <iostream>
 #include <fstream>
-#include <queue>
-#include <map>
-#include <vector>
+#include <iostream>
+#include <memory>
 #include <string>
-#include <sstream>
+#include <vector>
 #include <algorithm>
 
+// A class representing a task in the system
 class Task {
-public:
-    char id;
-    unsigned int start_time;
-    unsigned int duration;
-    unsigned int vruntime;
+ public:
+  Task(char id, unsigned int start_time, unsigned int duration)
+      : id_(id), start_time_(start_time), duration_(duration), vruntime_(0) {}
 
-    Task(char i, unsigned int s, unsigned int d)
-        : id(i), start_time(s), duration(d), vruntime(0) {}
+  char GetId() const { return id_; }
+  unsigned int GetStartTime() const { return start_time_; }
+  unsigned int GetDuration() const { return duration_; }
+  unsigned int GetVruntime() const { return vruntime_; }
+
+  void IncrementVruntime() { vruntime_++; }
+  void SetVruntime(unsigned int vruntime) { vruntime_ = vruntime; }
+  bool IsCompleted() const { return duration_ == 0; }
+  void Run() { duration_--; }
+
+ private:
+  char id_;
+  unsigned int start_time_;
+  unsigned int duration_;
+  unsigned int vruntime_;
 };
 
-struct CompareStart {
-    bool operator()(const Task* a, const Task* b) {
-        if (a->start_time == b->start_time) {
-            return a->id > b->id;
-        }
-        return a->start_time > b->start_time;
-    }
-};
+// The CFS scheduler class
+class CFSScheduler {
+ public:
+  // Add a task to be scheduled
+  void AddTask(char id, unsigned int start_time, unsigned int duration) {
+    tasks_.push_back(std::unique_ptr<Task>(new Task(id, start_time, duration)));
+  }
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <task_file.dat>\n";
-        return 1;
-    }
-
-    std::ifstream file(argv[1]);
-    if (!file) {
-        std::cerr << "Error: cannot open file " << argv[1] << '\n';
-        return 1;
-    }
-
-    std::priority_queue<Task*, std::vector<Task*>, CompareStart> pending_tasks;
-    std::string line;
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        char id;
-        unsigned int start, duration;
-        if (!(iss >> id >> start >> duration)) {
-            std::cerr << "Error: invalid task line\n";
-            continue;
-        }
-        pending_tasks.push(new Task(id, start, duration));
-    }
-
-    std::multimap<std::pair<unsigned int, char>, Task*> timeline;
-    Task* current_task = nullptr;
+  // Run the scheduler until all tasks are complete
+  void Run() {
     unsigned int current_tick = 0;
     unsigned int min_vruntime = 0;
 
+    // Maintain a list of active tasks (not yet completed)
+    std::vector<Task*> active_tasks;
+    Task* current_task = nullptr;
+
+    // Continue until all tasks are completed
     while (true) {
-        // Add new tasks starting at current_tick
-        while (!pending_tasks.empty()) {
-            Task* task = pending_tasks.top();
-            if (task->start_time == current_tick) {
-                pending_tasks.pop();
-                task->vruntime = min_vruntime;
-                timeline.insert({{task->vruntime, task->id}, task});
-            } else {
-                break;
-            }
+      // Check for new tasks starting at this tick
+      for (auto& task : tasks_) {
+        if (task->GetStartTime() == current_tick && !task->IsCompleted()) {
+          // Set the vruntime of new tasks to the current min_vruntime
+          task->SetVruntime(min_vruntime);
+          active_tasks.push_back(task.get());
+          
+          // Sort tasks by ID when they start at the same time
+          std::sort(active_tasks.begin(), active_tasks.end(),
+                    [](Task* a, Task* b) {
+                      return a->GetId() < b->GetId();
+                    });
         }
+      }
 
-        // Check if current task should yield
-        if (current_task && current_task->vruntime > min_vruntime) {
-            timeline.insert({{current_task->vruntime, current_task->id}, current_task});
-            current_task = nullptr;
+      // If current task is still active, add it back to active tasks
+      if (current_task && !current_task->IsCompleted()) {
+        active_tasks.push_back(current_task);
+        current_task = nullptr;
+      }
+
+      // Sort active tasks by vruntime and then by ID for tie-breaking
+      std::sort(active_tasks.begin(), active_tasks.end(),
+                [](Task* a, Task* b) {
+                  if (a->GetVruntime() == b->GetVruntime()) {
+                    return a->GetId() < b->GetId();
+                  }
+                  return a->GetVruntime() < b->GetVruntime();
+                });
+
+      // Select the task with lowest vruntime
+      if (!active_tasks.empty()) {
+        current_task = active_tasks.front();
+        active_tasks.erase(active_tasks.begin());
+        min_vruntime = current_task->GetVruntime();
+      }
+
+      // Display queue size - count current task as part of the total for display
+      int display_size = active_tasks.size();
+      if (current_task) {
+        display_size += 1;
+      }
+
+      // Output the current tick state
+      std::cout << current_tick << " [" << display_size << "]: ";
+
+      // Execute the current task for one tick if available
+      if (current_task) {
+        std::cout << current_task->GetId();
+        current_task->Run();
+        current_task->IncrementVruntime();
+
+        // Mark completed tasks
+        if (current_task->IsCompleted()) {
+          std::cout << "*";
+          // Don't set current_task to nullptr here - wait until next iteration
         }
+      } else {
+        std::cout << "_";
+      }
+      std::cout << std::endl;
 
-        // Select new current task
-        if (!current_task && !timeline.empty()) {
-            auto it = timeline.begin();
-            current_task = it->second;
-            min_vruntime = current_task->vruntime;
-            timeline.erase(it);
-        }
+      // Increment time
+      current_tick++;
 
-        // Run current task and output
-        bool done = false;
-        if (current_task) {
-            current_task->vruntime += 1;
-            done = (current_task->vruntime >= current_task->duration);
-        }
-
-        int active_count = timeline.size() + (current_task ? 1 : 0);
-        std::cout << current_tick << " [" << active_count << "]: ";
-        if (current_task) {
-            std::cout << current_task->id;
-            if (done) {
-                std::cout << '*';
-                delete current_task;
-                current_task = nullptr;
-            }
-        } else {
-            std::cout << '_';
-        }
-        std::cout << '\n';
-
-        // Increment tick and check exit condition
-        current_tick++;
-        if (pending_tasks.empty() && timeline.empty() && !current_task) {
+      // Check if we're done (no current task, empty queue, and no future tasks)
+      if (!current_task && active_tasks.empty()) {
+        bool any_future_tasks = false;
+        for (auto& task : tasks_) {
+          if (task->GetStartTime() > current_tick || !task->IsCompleted()) {
+            any_future_tasks = true;
             break;
+          }
         }
+        if (!any_future_tasks) {
+          break;
+        }
+      }
     }
+  }
 
-    // Cleanup
-    while (!pending_tasks.empty()) {
-        delete pending_tasks.top();
-        pending_tasks.pop();
-    }
-    for (auto& entry : timeline) {
-        delete entry.second;
-    }
-    if (current_task) {
-        delete current_task;
-    }
+ private:
+  std::vector<std::unique_ptr<Task>> tasks_;
+};
 
-    return 0;
+int main(int argc, char* argv[]) {
+  // Check if a file name was provided
+  if (argc != 2) {
+    std::cerr << "Usage: " << argv[0] << " <task_file.dat>" << std::endl;
+    return 1;
+  }
+
+  // Open the file
+  std::ifstream file(argv[1]);
+  if (!file) {
+    std::cerr << "Error: cannot open file " << argv[1] << std::endl;
+    return 1;
+  }
+
+  // Create scheduler
+  CFSScheduler scheduler;
+
+  // Read tasks from file
+  char id;
+  unsigned int start_time, duration;
+  while (file >> id >> start_time >> duration) {
+    scheduler.AddTask(id, start_time, duration);
+  }
+
+  // Run the scheduler
+  scheduler.Run();
+
+  return 0;
 }
