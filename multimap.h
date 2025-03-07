@@ -12,6 +12,7 @@ class Multimap {
  public:
   unsigned int Size();
   const std::vector<V>& Get(const K& key);
+  const V& GetFirst(const K& key);  // New method to get first value
   bool Contains(const K& key);
   const K& Max();
   const K& Min();
@@ -67,6 +68,14 @@ const std::vector<V>& Multimap<K, V>::Get(const K& key) {
   Node* n = Get(root.get(), key);
   if (!n) throw std::runtime_error("Error: cannot find key");
   return n->values;  // Return entire vector of values
+}
+
+// New method to return just the first value for a key
+template <typename K, typename V>
+const V& Multimap<K, V>::GetFirst(const K& key) {
+  Node* n = Get(root.get(), key);
+  if (!n || n->values.empty()) throw std::runtime_error("Error: cannot find key or no values");
+  return n->values[0];  // Return first value
 }
 
 template <typename K, typename V>
