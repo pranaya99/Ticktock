@@ -92,8 +92,8 @@ class CFSScheduler {
       }
 
       // Print the current status
-      std::cout << current_tick << " [" << timeline_.Size()
-                << (current_task ? " + 1" : "") << "]: ";
+      std::cout << current_tick << " [" 
+                << (" 1 " ) << "]: ";
 
       // Run the current task for one tick
       if (current_task) {
