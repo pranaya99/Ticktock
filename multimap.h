@@ -46,7 +46,7 @@ public:
             for(const auto& value: pair.second) {
                 std::cout << value << " ";
             }
-            std::cout<<value<< " ";
+            std::cout<< std::endl;
         }
     }
 };
