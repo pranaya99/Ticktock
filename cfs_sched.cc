@@ -3,9 +3,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <map>
-#include <set>
-#include "multimap.h"
 #include <algorithm>
 
 // A class representing a task in the system
@@ -51,11 +48,11 @@ class CFSScheduler {
   void Run() {
     unsigned int current_tick = 0;
     unsigned int min_vruntime = 0;
-    
+
     // Maintain a list of active tasks (not yet completed)
     std::vector<Task*> active_tasks;
     Task* current_task = nullptr;
-    
+
     // Continue until all tasks are completed
     while (true) {
       // Check for new tasks starting at this tick
@@ -67,22 +64,22 @@ class CFSScheduler {
         }
       }
 
-      // If current task is still active, add it back to active tasks
-      if (current_task && !current_task->IsCompleted()) {
-        active_tasks.push_back(current_task);
-        current_task = nullptr;
-      }
-      
       // Sort active tasks by vruntime and then by ID for tie-breaking
-      std::sort(active_tasks.begin(), active_tasks.end(), 
+      std::sort(active_tasks.begin(), active_tasks.end(),
                 [](Task* a, Task* b) {
                   if (a->GetVruntime() == b->GetVruntime()) {
                     return a->GetId() < b->GetId();
                   }
                   return a->GetVruntime() < b->GetVruntime();
                 });
-      
+
       // Select the task with lowest vruntime
+      if (current_task && !current_task->IsCompleted()) {
+        // If current task is still active, add it back to active tasks
+        active_tasks.push_back(current_task);
+        current_task = nullptr;
+      }
+
       if (!active_tasks.empty()) {
         current_task = active_tasks.front();
         active_tasks.erase(active_tasks.begin());
@@ -102,20 +99,16 @@ class CFSScheduler {
         std::cout << current_task->GetId();
         current_task->Run();
         current_task->IncrementVruntime();
-        
+
         // Update min_vruntime if this is the smallest in all active tasks
-        // This is important for the CFS fairness algorithm
-        if (active_tasks.empty()) {
-          min_vruntime = current_task->GetVruntime();
-        } else {
-          // Find the minimum vruntime among all active tasks
-          unsigned int queue_min_vruntime = active_tasks.front()->GetVruntime();
-          // Only update min_vruntime if the current task has completed
-          if (current_task->IsCompleted()) {
-            min_vruntime = queue_min_vruntime;
+        if (current_task->IsCompleted()) {
+          if (!active_tasks.empty()) {
+            min_vruntime = active_tasks.front()->GetVruntime();
+          } else {
+            min_vruntime = 0;
           }
         }
-        
+
         // Mark completed tasks
         if (current_task->IsCompleted()) {
           std::cout << "*";
