@@ -22,8 +22,6 @@ public:
   bool IsCompleted() const { return duration_ == 0; }
   void Run() { duration_--; }
 
-
-
 private:
   char id_;
   unsigned int start_time_;
@@ -71,13 +69,12 @@ public:
                 {
                   if (a->GetVruntime() == b->GetVruntime())
                   {
-                    return a->GetStartTime() > b->GetStartTime();
+                    return a->GetId() < b->GetId(); // Sort by ID if vruntime is equal
                   }
-                  return a->GetVruntime() > b->GetVruntime();
+                  return a->GetVruntime() < b->GetVruntime(); // Sort by vruntime
                 });
 
-      // Select the task with lowest vruntime
-      // After running a task, if it's not completed, it should be added back.
+      // Select the task with the lowest vruntime
       if (current_task && !current_task->IsCompleted())
       {
         active_tasks.push_back(current_task);
@@ -107,9 +104,13 @@ public:
         current_task->Run();
         current_task->IncrementVruntime();
 
-        // Update min_vruntime if this is the smallest in all active tasks
+        // Mark completed tasks
         if (current_task->IsCompleted())
         {
+          std::cout << "*";
+          current_task = nullptr;
+
+          // Update min_vruntime to the next task's vruntime
           if (!active_tasks.empty())
           {
             min_vruntime = active_tasks.front()->GetVruntime();
@@ -118,13 +119,6 @@ public:
           {
             min_vruntime = 0;
           }
-        }
-
-        // Mark completed tasks
-        if (current_task->IsCompleted())
-        {
-          std::cout << "*";
-          current_task = nullptr;
         }
       }
       else
