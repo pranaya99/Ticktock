@@ -43,6 +43,7 @@ class Task {
 struct TaskComparator {
   bool operator()(const Task* a, const Task* b) const {
     if (a->GetVruntime() == b->GetVruntime()) {
+      // When vruntimes are equal, use task ID as tiebreaker
       return a->GetId() < b->GetId();
     }
     return a->GetVruntime() < b->GetVruntime();
@@ -71,6 +72,7 @@ class CFSScheduler {
       // Check for new tasks starting at this tick
       for (auto& task : tasks_) {
         if (task->GetStartTime() == current_tick && !task->IsCompleted()) {
+          // Set new tasks to the current min_vruntime to ensure fairness
           task->SetVruntime(min_vruntime);
           ready_queue.insert(task.get());
         }
@@ -86,7 +88,6 @@ class CFSScheduler {
       if (!current_task && !ready_queue.empty()) {
         current_task = *ready_queue.begin();
         ready_queue.erase(ready_queue.begin());
-        min_vruntime = current_task->GetVruntime();
       }
 
       // Display queue size - count current task as part of the total for display
@@ -103,6 +104,9 @@ class CFSScheduler {
         std::cout << current_task->GetId();
         current_task->Run();
         current_task->IncrementVruntime();
+        
+        // Update the global minimum vruntime
+        min_vruntime = current_task->GetVruntime();
         
         // Mark completed tasks
         if (current_task->IsCompleted()) {
