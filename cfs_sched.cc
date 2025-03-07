@@ -39,24 +39,12 @@ class Task {
   unsigned int vruntime_;
 };
 
-// A custom comparator for tasks based on their vruntime and ID
-struct TaskComparator {
-  bool operator()(const Task* a, const Task* b) const {
-    if (a->GetVruntime() == b->GetVruntime()) {
-      // When vruntimes are equal, use task ID as tiebreaker
-      return a->GetId() < b->GetId();
-    }
-    return a->GetVruntime() < b->GetVruntime();
-  }
-};
-
 // The CFS scheduler class
 class CFSScheduler {
  public:
   // Add a task to be scheduled
   void AddTask(char id, unsigned int start_time, unsigned int duration) {
-    tasks_.push_back(
-        std::make_unique<Task>(id, start_time, duration));
+    tasks_.push_back(std::make_unique<Task>(id, start_time, duration));
   }
 
   // Run the scheduler until all tasks are complete
@@ -64,34 +52,43 @@ class CFSScheduler {
     unsigned int current_tick = 0;
     unsigned int min_vruntime = 0;
     
-    // Set to track ready tasks, ordered by vruntime and then by ID
-    std::set<Task*, TaskComparator> ready_queue;
+    // Maintain a list of active tasks
+    std::vector<Task*> active_tasks;
     Task* current_task = nullptr;
-
+    
+    // Continue until all tasks are completed
     while (true) {
       // Check for new tasks starting at this tick
       for (auto& task : tasks_) {
         if (task->GetStartTime() == current_tick && !task->IsCompleted()) {
-          // Set new tasks to the current min_vruntime to ensure fairness
           task->SetVruntime(min_vruntime);
-          ready_queue.insert(task.get());
+          active_tasks.push_back(task.get());
         }
       }
 
-      // If we have a current task that's not completed, put it back in the queue
+      // If current task is still active, add it back to active tasks
       if (current_task && !current_task->IsCompleted()) {
-        ready_queue.insert(current_task);
+        active_tasks.push_back(current_task);
         current_task = nullptr;
       }
-
-      // Select the next task with the lowest vruntime
-      if (!current_task && !ready_queue.empty()) {
-        current_task = *ready_queue.begin();
-        ready_queue.erase(ready_queue.begin());
+      
+      // Sort active tasks by vruntime and then by ID
+      std::sort(active_tasks.begin(), active_tasks.end(), 
+                [](Task* a, Task* b) {
+                  if (a->GetVruntime() == b->GetVruntime()) {
+                    return a->GetId() < b->GetId();
+                  }
+                  return a->GetVruntime() < b->GetVruntime();
+                });
+      
+      // Select the task with lowest vruntime
+      if (!active_tasks.empty()) {
+        current_task = active_tasks.front();
+        active_tasks.erase(active_tasks.begin());
       }
 
       // Display queue size - count current task as part of the total for display
-      int display_size = ready_queue.size();
+      int display_size = active_tasks.size();
       if (current_task) {
         display_size += 1;
       }
@@ -105,8 +102,12 @@ class CFSScheduler {
         current_task->Run();
         current_task->IncrementVruntime();
         
-        // Update the global minimum vruntime
-        min_vruntime = current_task->GetVruntime();
+        // Update min_vruntime for future tasks
+        if (active_tasks.empty()) {
+          min_vruntime = current_task->GetVruntime();
+        } else {
+          min_vruntime = std::min(active_tasks.front()->GetVruntime(), current_task->GetVruntime());
+        }
         
         // Mark completed tasks
         if (current_task->IsCompleted()) {
@@ -122,7 +123,7 @@ class CFSScheduler {
       current_tick++;
 
       // Check if we're done (no current task, empty queue, and no future tasks)
-      if (!current_task && ready_queue.empty()) {
+      if (!current_task && active_tasks.empty()) {
         bool any_future_tasks = false;
         for (auto& task : tasks_) {
           if (task->GetStartTime() > current_tick || !task->IsCompleted()) {
