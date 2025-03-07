@@ -3,8 +3,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
+#include <set>
 #include "multimap.h"
-#include <algorithm>  
+#include <algorithm>
 
 // A class representing a task in the system
 class Task {
@@ -37,6 +39,16 @@ class Task {
   unsigned int vruntime_;
 };
 
+// A custom comparator for tasks based on their vruntime and ID
+struct TaskComparator {
+  bool operator()(const Task* a, const Task* b) const {
+    if (a->GetVruntime() == b->GetVruntime()) {
+      return a->GetId() < b->GetId();
+    }
+    return a->GetVruntime() < b->GetVruntime();
+  }
+};
+
 // The CFS scheduler class
 class CFSScheduler {
  public:
@@ -50,71 +62,51 @@ class CFSScheduler {
   void Run() {
     unsigned int current_tick = 0;
     unsigned int min_vruntime = 0;
+    
+    // Set to track ready tasks, ordered by vruntime and then by ID
+    std::set<Task*, TaskComparator> ready_queue;
     Task* current_task = nullptr;
-    std::vector<Task*> active_tasks;
 
-    // Continue until all tasks are done
     while (true) {
-      // Check if there are new tasks to add at this tick
+      // Check for new tasks starting at this tick
       for (auto& task : tasks_) {
         if (task->GetStartTime() == current_tick && !task->IsCompleted()) {
           task->SetVruntime(min_vruntime);
-          timeline_.Insert(task->GetVruntime(), task.get());
-          active_tasks.push_back(task.get());
+          ready_queue.insert(task.get());
         }
       }
 
-      // Calculate display size - include all tasks in the timeline 
-      // PLUS the current running task (which is not in the timeline)
-      int display_size = timeline_.Size();
+      // If we have a current task that's not completed, put it back in the queue
       if (current_task && !current_task->IsCompleted()) {
-        display_size = display_size + 1;
-      }
-
-      // If we have a current task but it's done running, set it to nullptr
-      if (current_task && current_task->IsCompleted()) {
+        ready_queue.insert(current_task);
         current_task = nullptr;
       }
 
-      // If no current task, try to get one from the timeline
-      if (!current_task && timeline_.Size() > 0) {
-        unsigned int min_key = timeline_.Min();
-        std::vector<Task*> tasks_at_min = timeline_.Get(min_key);
-        
-        if (!tasks_at_min.empty()) {
-          // Get the task with the lowest ID at this vruntime
-          std::sort(tasks_at_min.begin(), tasks_at_min.end(),
-                    [](const Task* a, const Task* b) {
-                      return a->GetId() < b->GetId();
-                    });
-          
-          current_task = tasks_at_min[0];
-          
-          // Remove the key entirely, then reinsert others if needed
-          timeline_.Remove(min_key);
-          
-          // Put back all tasks except the one we just got
-          for (size_t i = 1; i < tasks_at_min.size(); i++) {
-            timeline_.Insert(min_key, tasks_at_min[i]);
-          }
-        }
+      // Select the next task with the lowest vruntime
+      if (!current_task && !ready_queue.empty()) {
+        current_task = *ready_queue.begin();
+        ready_queue.erase(ready_queue.begin());
+        min_vruntime = current_task->GetVruntime();
       }
 
-      // Print the current status
+      // Display queue size - count current task as part of the total for display
+      int display_size = ready_queue.size();
+      if (current_task) {
+        display_size += 1;
+      }
+
+      // Output the current tick state
       std::cout << current_tick << " [" << display_size << "]: ";
 
-      // Run the current task for one tick if we have one
+      // Execute the current task for one tick if available
       if (current_task) {
         std::cout << current_task->GetId();
         current_task->Run();
         current_task->IncrementVruntime();
-
-        // If the task is completed after running, mark it
+        
+        // Mark completed tasks
         if (current_task->IsCompleted()) {
           std::cout << "*";
-        } else {
-          // If not completed, put it back in the timeline for the next tick
-          timeline_.Insert(current_task->GetVruntime(), current_task);
           current_task = nullptr;
         }
       } else {
@@ -122,11 +114,11 @@ class CFSScheduler {
       }
       std::cout << std::endl;
 
-      // Increment tick
+      // Increment time
       current_tick++;
 
-      // Check if we're done - all tasks completed and none in timeline
-      if (timeline_.Size() == 0 && !current_task) {
+      // Check if we're done (no current task, empty queue, and no future tasks)
+      if (!current_task && ready_queue.empty()) {
         bool any_future_tasks = false;
         for (auto& task : tasks_) {
           if (task->GetStartTime() > current_tick || !task->IsCompleted()) {
@@ -134,7 +126,6 @@ class CFSScheduler {
             break;
           }
         }
-        
         if (!any_future_tasks) {
           break;
         }
@@ -144,7 +135,6 @@ class CFSScheduler {
 
  private:
   std::vector<std::unique_ptr<Task>> tasks_;
-  Multimap<unsigned int, Task*> timeline_;
 };
 
 int main(int argc, char* argv[]) {
