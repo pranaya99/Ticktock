@@ -22,14 +22,7 @@ public:
   bool IsCompleted() const { return duration_ == 0; }
   void Run() { duration_--; }
 
-  // For debugging
-  friend std::ostream &operator<<(std::ostream &os, const Task &task)
-  {
-    os << "Task " << task.id_ << " (start: " << task.start_time_
-       << ", duration: " << task.duration_ << ", vruntime: " << task.vruntime_
-       << ")";
-    return os;
-  }
+
 
 private:
   char id_;
@@ -78,9 +71,9 @@ public:
                 {
                   if (a->GetVruntime() == b->GetVruntime())
                   {
-                    return a->GetStartTime() < b->GetStartTime();
+                    return a->GetStartTime() > b->GetStartTime();
                   }
-                  return a->GetVruntime() < b->GetVruntime();
+                  return a->GetVruntime() > b->GetVruntime();
                 });
 
       // Select the task with lowest vruntime
