@@ -52,7 +52,7 @@ class CFSScheduler {
     unsigned int current_tick = 0;
     unsigned int min_vruntime = 0;
     
-    // Maintain a list of active tasks
+    // Maintain a list of active tasks (not yet completed)
     std::vector<Task*> active_tasks;
     Task* current_task = nullptr;
     
@@ -61,6 +61,7 @@ class CFSScheduler {
       // Check for new tasks starting at this tick
       for (auto& task : tasks_) {
         if (task->GetStartTime() == current_tick && !task->IsCompleted()) {
+          // Set the vruntime of new tasks to the current min_vruntime
           task->SetVruntime(min_vruntime);
           active_tasks.push_back(task.get());
         }
@@ -72,7 +73,7 @@ class CFSScheduler {
         current_task = nullptr;
       }
       
-      // Sort active tasks by vruntime and then by ID
+      // Sort active tasks by vruntime and then by ID for tie-breaking
       std::sort(active_tasks.begin(), active_tasks.end(), 
                 [](Task* a, Task* b) {
                   if (a->GetVruntime() == b->GetVruntime()) {
@@ -102,11 +103,17 @@ class CFSScheduler {
         current_task->Run();
         current_task->IncrementVruntime();
         
-        // Update min_vruntime for future tasks
+        // Update min_vruntime if this is the smallest in all active tasks
+        // This is important for the CFS fairness algorithm
         if (active_tasks.empty()) {
           min_vruntime = current_task->GetVruntime();
         } else {
-          min_vruntime = std::min(active_tasks.front()->GetVruntime(), current_task->GetVruntime());
+          // Find the minimum vruntime among all active tasks
+          unsigned int queue_min_vruntime = active_tasks.front()->GetVruntime();
+          // Only update min_vruntime if the current task has completed
+          if (current_task->IsCompleted()) {
+            min_vruntime = queue_min_vruntime;
+          }
         }
         
         // Mark completed tasks
