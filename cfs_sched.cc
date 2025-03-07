@@ -57,7 +57,7 @@ class CFSScheduler {
       // Check if there are new tasks to add at this tick
       std::vector<Task*> new_tasks;
       for (auto& task : tasks_) {
-        if (task->GetStartTime() == current_tick) {
+        if (task->GetStartTime() == current_tick && !task->IsCompleted()) {
           task->SetVruntime(min_vruntime);
           new_tasks.push_back(task.get());
         }
@@ -74,26 +74,36 @@ class CFSScheduler {
         timeline_.Insert(task->GetVruntime(), task);
       }
 
+      // Calculate number of tasks in the queue (excluding current task)
+      int queue_size = timeline_.Size();
+
       // Check if the current task should yield to another task
       if (current_task && !current_task->IsCompleted()) {
-        if (current_task->GetVruntime() > min_vruntime) {
-          timeline_.Insert(current_task->GetVruntime(), current_task);
-          current_task = nullptr;
-        }
+        timeline_.Insert(current_task->GetVruntime(), current_task);
+        current_task = nullptr;
       }
 
       // If no current task, get the next task from the timeline
-      if (!current_task) {
-        if (timeline_.Size() > 0) {
-          current_task = timeline_.Get(timeline_.Min())[0];
-          timeline_.Remove(timeline_.Min());
+      if (!current_task && timeline_.Size() > 0) {
+        unsigned int min_key = timeline_.Min();
+        std::vector<Task*> tasks_at_min = timeline_.Get(min_key);
+        if (!tasks_at_min.empty()) {
+          current_task = tasks_at_min[0];
+          
+          // Remove just the key, then reinsert other tasks at this key if needed
+          timeline_.Remove(min_key);
+          
+          // Reinsert the other tasks with the same key (if any)
+          for (size_t i = 1; i < tasks_at_min.size(); i++) {
+            timeline_.Insert(min_key, tasks_at_min[i]);
+          }
+          
           min_vruntime = current_task->GetVruntime();
         }
       }
 
-      // Print the current status
-      std::cout << current_tick << " [" 
-                << (" 1 " ) << "]: ";
+      // Print the current status - fixed format to match expected output
+      std::cout << current_tick << " [" << queue_size << "]: ";
 
       // Run the current task for one tick
       if (current_task) {
