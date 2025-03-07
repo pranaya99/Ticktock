@@ -1,15 +1,15 @@
 CXX = g++
-CXXFLAGS = -std=c++14 -Wall -Wextra -pedantic
-LDFLAGS = -lgtest -lgtest_main -pthread
+CXXFLAGS = -Wall -Werror -std=c++14
 
-TARGET = multimap_test
-SRCS = test_multimap.cc
+GTEST_FLAGS = -lgtest -lgtest_main -pthread
 
-all: $(TARGET)
+all: test_multimap cfs_sched
 
-$(TARGET): $(SRCS) multimap.h
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRCS) $(LDFLAGS)
+test_multimap: test_multimap.cc multimap.h
+	$(CXX) $(CXXFLAGS) -o $@ $< $(GTEST_FLAGS)
+
+cfs_sched: cfs_sched.cc multimap.h
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
 clean:
-	rm -f $(TARGET)
-
+	rm -f test_multimap cfs_sched *.o
