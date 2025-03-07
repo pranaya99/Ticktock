@@ -2,36 +2,34 @@
 #include <algorithm>
 #include <vector>
 
-#include "map.h"
+#include "multimap.h"
 
 // Test one key
-TEST(Map, OneKey) {
-  Map<int, int> map;
+TEST(Multimap, OneKey) {
+  Multimap<int, int> multimap;
   std::vector<int> keys{2};
 
   for (auto i : keys) {
-    map.Insert(i, i);
+    multimap.Insert(i, i);
   }
 
-  EXPECT_EQ(map.Contains(2), true);
-  EXPECT_EQ(map.Get(2), keys[0]);
+  EXPECT_EQ(multimap.Contains(2), true);
+  EXPECT_EQ(multimap.Get(2)[0], keys[0]);
 }
 
 // Test multiple keys
-TEST(Map, MultipleKeys) {
-  Map<int, int> map;
+TEST(Multimap, MultipleKeys) {
+  Multimap<int, int> multimap;
   std::vector<int> keys{2, 18, 42, 43};
 
-  // Insert a bunch of keys
   for (auto i : keys) {
-    map.Insert(i, i);
+    multimap.Insert(i, i);
   }
 
-  // Check that every key is contained
   std::random_shuffle(keys.begin(), keys.end());
   for (auto i : keys) {
-    EXPECT_EQ(map.Contains(i), true);
-    EXPECT_EQ(map.Get(i), i);
+    EXPECT_EQ(multimap.Contains(i), true);
+    EXPECT_EQ(multimap.Get(i)[0], i);
   }
 }
 
