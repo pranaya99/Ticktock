@@ -1,10 +1,18 @@
-all: test_multimap
+CXX = g++
+CXXFLAGS = -std=c++11 -Wall -Wextra -pedantic
+LDFLAGS = -lgtest -lgtest_main -pthread
 
-test_multimap: test_multimap.o
-	g++ -std=c++11 -o test_multimap test_multimap.o -lgtest -lgtest_main -pthread
+TARGET = multimap_test
+SRCS = test_multimap.cc
+OBJS = $(SRCS:.cc=.o)
 
-test_multimap.o: test_multimap.cc
-	g++ -std=c++11 -c test_multimap.cc
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+%.o: %.cc
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f test_multimap test_multimap.o
+	rm -f $(TARGET) $(OBJS)
