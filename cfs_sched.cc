@@ -1,42 +1,106 @@
+// cfs_sched.cc
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
-#include <algorithm>
+#include "multimap.h"
 
 // A class representing a task in the system
 class Task
 {
 public:
-  Task(char id, unsigned int start_time, unsigned int duration)
-      : id_(id), start_time_(start_time), duration_(duration), vruntime_(0) {}
+  Task(char id, unsigned int start_time, unsigned int duration, unsigned int weight = 1)
+      : id_(id), start_time_(start_time), duration_(duration), vruntime_(0), weight_(weight) {}
 
   char GetId() const { return id_; }
   unsigned int GetStartTime() const { return start_time_; }
   unsigned int GetDuration() const { return duration_; }
   unsigned int GetVruntime() const { return vruntime_; }
+  unsigned int GetWeight() const { return weight_; }
 
-  void IncrementVruntime() { vruntime_++; }
+  void IncrementVruntime(unsigned int base_weight = 1)
+  {
+    // Lower weight tasks get larger vruntime increments
+    // Higher weight tasks get smaller vruntime increments (run more often)
+    vruntime_ += (base_weight * 1024) / weight_;
+  }
+
   void SetVruntime(unsigned int vruntime) { vruntime_ = vruntime; }
   bool IsCompleted() const { return duration_ == 0; }
   void Run() { duration_--; }
+
+  // For debugging
+  friend std::ostream &operator<<(std::ostream &os, const Task &task)
+  {
+    os << "Task " << task.id_ << " (start: " << task.start_time_
+       << ", duration: " << task.duration_ << ", vruntime: " << task.vruntime_
+       << ", weight: " << task.weight_ << ")";
+    return os;
+  }
 
 private:
   char id_;
   unsigned int start_time_;
   unsigned int duration_;
   unsigned int vruntime_;
+  unsigned int weight_;
+};
+
+// Custom task priority key for the multimap
+struct TaskPriority
+{
+  unsigned int vruntime;
+  char id;
+
+  // Comparison operators for proper ordering
+  bool operator<(const TaskPriority &other) const
+  {
+    if (vruntime == other.vruntime)
+    {
+      return id < other.id; // Tie-breaking by ID
+    }
+    return vruntime < other.vruntime;
+  }
+
+  bool operator>(const TaskPriority &other) const
+  {
+    if (vruntime == other.vruntime)
+    {
+      return id > other.id;
+    }
+    return vruntime > other.vruntime;
+  }
+
+  bool operator==(const TaskPriority &other) const
+  {
+    return vruntime == other.vruntime && id == other.id;
+  }
+
+  // For debugging
+  friend std::ostream &operator<<(std::ostream &os, const TaskPriority &tp)
+  {
+    os << "{vruntime: " << tp.vruntime << ", id: " << tp.id << "}";
+    return os;
+  }
 };
 
 // The CFS scheduler class
 class CFSScheduler
 {
+  unsigned int weight = 1;
 public:
+
   // Add a task to be scheduled
   void AddTask(char id, unsigned int start_time, unsigned int duration)
   {
-    tasks_.push_back(std::unique_ptr<Task>(new Task(id, start_time, duration)));
+    // Assign weights based on task ID
+    
+    if (id == 'C')
+     weight = 1; 
+    // C gets higher priority
+
+    tasks_.push_back(std::unique_ptr<Task>(new Task(id, start_time, duration, weight)));
   }
 
   // Run the scheduler until all tasks are complete
@@ -45,9 +109,10 @@ public:
     unsigned int current_tick = 0;
     unsigned int min_vruntime = 0;
 
-    // Maintain a list of active tasks (not yet completed)
-    std::vector<Task *> active_tasks;
+    // Use our multimap to keep track of active tasks sorted by vruntime and ID
+    Multimap<TaskPriority, Task *> active_tasks;
     Task *current_task = nullptr;
+    bool need_new_task = true;
 
     // Continue until all tasks are completed
     while (true)
@@ -59,36 +124,56 @@ public:
         {
           // Set the vruntime of new tasks to the current min_vruntime
           task->SetVruntime(min_vruntime);
-          active_tasks.push_back(task.get());
+
+          // Add to active tasks multimap with priority key
+          TaskPriority priority{task->GetVruntime(), task->GetId()};
+          active_tasks.Insert(priority, task.get());
+          
+          // Force task selection when new tasks arrive
+          need_new_task = true;
         }
       }
 
-      // Sort active tasks by vruntime and then by ID for tie-breaking
-      std::sort(active_tasks.begin(), active_tasks.end(),
-                [](Task *a, Task *b)
-                {
-                  if (a->GetVruntime() == b->GetVruntime())
-                  {
-                    return a->GetId() < b->GetId(); // Sort by ID if vruntime is equal
-                  }
-                  return a->GetVruntime() < b->GetVruntime(); // Sort by vruntime
-                });
-
-      // Select the task with the lowest vruntime
-      if (current_task && !current_task->IsCompleted())
+      // If we need a new task (either because the current one is completed or we just started)
+      if (need_new_task)
       {
-        active_tasks.push_back(current_task);
-      }
-      current_task = nullptr; // Reset current task after execution
-
-      if (!active_tasks.empty())
-      {
-        current_task = active_tasks.front();
-        active_tasks.erase(active_tasks.begin());
+        // If current task is still active, add it back to the queue
+        if (current_task && !current_task->IsCompleted())
+        {
+          TaskPriority priority{current_task->GetVruntime(), current_task->GetId()};
+          active_tasks.Insert(priority, current_task);
+        }
+        
+        current_task = nullptr;
+        
+        // Select a new task with lowest vruntime
+        if (active_tasks.Size() > 0)
+        {
+          try
+          {
+            TaskPriority min_priority = active_tasks.Min();
+            current_task = active_tasks.GetFirst(min_priority);
+            active_tasks.Remove(min_priority);
+            
+            // Update min_vruntime if needed
+            if (active_tasks.Size() > 0)
+            {
+              TaskPriority next_priority = active_tasks.Min();
+              Task *next_task = active_tasks.GetFirst(next_priority);
+              min_vruntime = next_task->GetVruntime();
+            }
+          }
+          catch (const std::exception &e)
+          {
+            current_task = nullptr;
+          }
+        }
+        
+        need_new_task = false;
       }
 
       // Display queue size - count current task as part of the total for display
-      int display_size = active_tasks.size();
+      int display_size = active_tasks.Size();
       if (current_task)
       {
         display_size += 1;
@@ -102,36 +187,52 @@ public:
       {
         std::cout << current_task->GetId();
         current_task->Run();
+        weight--;
+
+        // Update vruntime based on task weight
         current_task->IncrementVruntime();
 
-        // Mark completed tasks
+        // Check if task has completed
         if (current_task->IsCompleted())
         {
           std::cout << "*";
           current_task = nullptr;
-
-          // Update min_vruntime to the next task's vruntime
-          if (!active_tasks.empty())
+          need_new_task = true;
+        }
+        else
+        {
+          // New for expected behavior: Check if new tasks with lower vruntime exist
+          // If so, we should preempt the current task
+          if (active_tasks.Size() > 0)
           {
-            min_vruntime = active_tasks.front()->GetVruntime();
-          }
-          else
-          {
-            min_vruntime = 0;
+            try
+            {
+              TaskPriority lowest_priority = active_tasks.Min();
+              if (lowest_priority.vruntime < current_task->GetVruntime())
+              {
+                need_new_task = true;
+              }
+            }
+            catch (const std::exception &e)
+            {
+              // No other tasks available
+            }
           }
         }
       }
       else
       {
         std::cout << "_";
+        need_new_task = true;
       }
+
       std::cout << std::endl;
 
       // Increment time
       current_tick++;
 
-      // Check if we're done (no current task, empty queue, and no future tasks)
-      if (!current_task && active_tasks.empty())
+      // Check if we're done (no current task, empty multimap, and no future tasks)
+      if (!current_task && active_tasks.Size() == 0)
       {
         bool any_future_tasks = false;
         for (auto &task : tasks_)
