@@ -163,8 +163,8 @@ $ ./cfs_sched examples/demo.dat
 
 ## 🎓 Learning Outcomes
 
-This project demonstrates mastery of:
-- **Advanced data structures** and algorithm implementation
+This project demonstrates 
+- **Data structures** and algorithm implementation
 - **Systems programming** concepts from Linux kernel development
 - **Software engineering practices** including testing and documentation
 - **Performance optimization** and complexity analysis
