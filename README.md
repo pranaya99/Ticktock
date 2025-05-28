@@ -1,6 +1,5 @@
 # 🚀 CFS Task Scheduler - Linux Kernel-Inspired Process Management
 
-A high-performance C++ implementation of the **Completely Fair Scheduler** (CFS) - the default Linux kernel scheduler for 15+ years - built from scratch with a custom Left-Leaning Red-Black Tree data structure.
 
 [![C++](https://img.shields.io/badge/C++-11-blue?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen)](https://github.com)
