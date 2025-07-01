@@ -1,4 +1,4 @@
-# 🚀 CFS Task Scheduler - Linux Kernel-Inspired Process Management
+# 🚀 TIckTock  - CFS Task Scheduler - Linux Kernel-Inspired Process Management
 
 
 [![C++](https://img.shields.io/badge/C++-11-blue?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
